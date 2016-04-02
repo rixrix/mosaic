@@ -4,8 +4,30 @@
     <script type="text/javascript" src="js/mosaic.js"></script>
     <script type="text/javascript" src="js/client.js"></script>
     <title>Mosaic</title>
+
+    <style>
+        .Container {
+            display: flex;
+            flex-direction: row;
+        }
+
+        .Container-renderedImageMosaic {
+            border: 2px solid lightgray
+        }
+
+        .Container-dragDropImage {
+            border: 2px dotted lightgray;
+        }
+    </style>
   </head>
   <body>
-    <!-- Edit me. -->
+    <div class="Container">
+        <div class="Container-renderedImageMosaic">
+            <p>Rendered Mosaic</p>
+        </div>
+        <div class="Container-dragDropImage">
+            Drag & Drop Image here
+        </div>
+    </div>
   </body>
 </html>
