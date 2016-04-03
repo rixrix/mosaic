@@ -1,18 +1,14 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <script type="text/javascript" src="js/mosaic.js"></script>
-    <script type="text/javascript" src="js/client.js"></script>
     <title>Mosaic</title>
-
     <style>
         .Container {
             display: flex;
-            flex-direction: row;
+            flex-direction: column;
         }
 
         .Container-renderedImageMosaic {
-            border: 2px solid lightgray;
             width: 100%;
             height: 100%;
             margin: 5px;
@@ -20,22 +16,32 @@
 
         .Container-dragDropImage {
             border: 2px dotted lightgray;
-            width: 150px;
-            height: 150px;
+            width: 200px;
+            height: 50px;
             text-align: center;
             margin: 5px;
+            padding-top: 20px;
         }
 
     </style>
   </head>
   <body>
     <div class="Container">
-        <div id="photoMosaicContainer" class="Container-renderedImageMosaic">
-
+        <div id="photoMosaicContainerId" class="Container-renderedImageMosaic">
         </div>
-        <div class="Container-dragDropImage">
+        <div id="sourceImageContainerId" class="Container-dragDropImage">
             Drag & Drop Image here
         </div>
     </div>
   </body>
+  <script type="text/javascript" src="js/mosaic.js"></script>
+  <script type="text/javascript" src="js/client.js"></script>
+  <script type="text/javascript">
+        PhotoMosaic.init({
+            tileWidth: TILE_WIDTH,
+            tileHeight: TILE_HEIGHT,
+            photoMosaicContainerId: '#photoMosaicContainerId',
+            sourceImageContainerId: '#sourceImageContainerId'
+        });
+  </script>
 </html>
