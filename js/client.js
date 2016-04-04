@@ -1,11 +1,17 @@
+"use strict";
 
-
-PhotoMosaic = (function() {
+var PhotoMosaic = (function() {
     /**
      * global options
      * @type {object[]}
      */
     var options = {};
+
+    var errorMessages = {
+        ERR_INVALID_TYPE: 'Invalid file type. Allowed file format: *.png, *.jpg, *.gif',
+        ERR_FILE_UPLOAD: 'There was an error during file upload',
+        ERR_IMAGE_LOAD: 'There was an error while loading image'
+    };
 
     /**
      * Generates the photo mosaic
@@ -31,16 +37,24 @@ PhotoMosaic = (function() {
     function renderPhotoMosaicFromImageTiles(imageWidth, imageHeight, imagesTiles) {
         var photoMosaicContainer = document.querySelector('#photoMosaicContainerId');
 
-        photoMosaicContainer.setAttribute('style', 'width:' + imageWidth + 'px;height:100%');
-        photoMosaicContainer.innerHTML = '';
+        photoMosaicContainer.innerHTML = ''; // clear out mosaic container
+        photoMosaicContainer.setAttribute('style', 'width:' + imageWidth + 'px;');
 
-        imagesTiles.map(function(imageTile, imageTileIndex) {
+        imagesTiles.map(function(rowOfHexColourImages) {
             var imageRowContainer = document.createElement('div');
+            var preLoadImageTilePromises = rowOfHexColourImages.map(function(colour) {
+                return preLoadImageTile('/color/' + colour);
+            });
 
-            imageTile.map(function(hexColor, hexIndex) {
-                var imageRowContent = document.createElement('img');
-                imageRowContent.src = "/color/" + hexColor;
-                imageRowContainer.appendChild(imageRowContent);
+            // render each rows of tile in parallel
+            Promise.all(preLoadImageTilePromises)
+            .then(function(imageUrls) {
+                imageUrls.map(function(url) {
+                    var imageElement = document.createElement('img');
+
+                    imageElement.src = url;
+                    imageRowContainer.appendChild(imageElement);
+                });
             });
 
             photoMosaicContainer.appendChild(imageRowContainer);
@@ -48,7 +62,28 @@ PhotoMosaic = (function() {
     }
 
     /**
-     * Returns an image tile in 2-dimensional array
+     * Returns a promise while waiting for the image to load
+     *
+     * @param {string} image resource path
+     * @returns {promise}
+     */
+    function preLoadImageTile(colourPath) {
+        return new Promise(function(resolve, reject) {
+            var imageTile = new Image();
+
+            imageTile.src = colourPath;
+            imageTile.onload = function() {
+                resolve(colourPath);
+            };
+
+            // At some stage when the server gets choked eg. large image
+            // We still would want to continue processing the rest of the promises
+            imageTile.onerror = resolve;
+        });
+    }
+
+    /**
+     * Returns an image tile in 2-dimensional array. It will computes the average colour for each tile
      *
      * @param {number} imageWidth
      * @param {number} imageHeight
@@ -61,7 +96,7 @@ PhotoMosaic = (function() {
             arrayOfImageData = getImageDataFromRenderedCanvas(imageWidth, imageHeight, sourceImage);
 
         var imageTile = [],
-            RGBCHUNKSINBYTES = 4;
+            RGB_CHUNKS_IN_BYTES = 4;
 
         for (var column = 0; column < columnSize; column++) {
 
@@ -72,17 +107,17 @@ PhotoMosaic = (function() {
 
                 var y = column * options.tileHeight,
                     x = row * options.tileWidth,
-                    r = 0,  // red array index
-                    g = 1,  // green array index
-                    b = 2;  // blue array index
+                    redIdx = 0,   // red array index
+                    greenIdx = 1, // green array index
+                    blueIdx = 2;  // blue array index
 
-                var offSetY = y * imageWidth * RGBCHUNKSINBYTES,
-                    offSetX = x * RGBCHUNKSINBYTES;
+                var offSetY = y * imageWidth * RGB_CHUNKS_IN_BYTES,
+                    offSetX = x * RGB_CHUNKS_IN_BYTES;
 
                 imageTile[column][row] = rgbToHex(
-                    arrayOfImageData[offSetX + offSetY + r],
-                    arrayOfImageData[offSetX + offSetY + g],
-                    arrayOfImageData[offSetX + offSetY + b]
+                    arrayOfImageData[offSetX + offSetY + redIdx],
+                    arrayOfImageData[offSetX + offSetY + greenIdx],
+                    arrayOfImageData[offSetX + offSetY + blueIdx]
                 );
             }
         }
@@ -122,9 +157,9 @@ PhotoMosaic = (function() {
      * Connverts RGB to Hex format
      *  see: http://stackoverflow.com/a/5624139
      *
-     * @param {number} r = red
-     * @param {number} g = green
-     * @param {number} b = blue
+     * @param {number} red
+     * @param {number} green
+     * @param {number} blue
      * @returns {string} Hex representation of RGB values
      */
     function rgbToHex(r, g, b) {
@@ -137,18 +172,44 @@ PhotoMosaic = (function() {
      * @param {object[]} Image metadata
      */
     function onImageDropEventHandler(event) {
-        var file = event.dataTransfer.files[0];
-        var reader = new FileReader();
+        var file = event.dataTransfer.files[0]; // ATM, we're only interested on the first item
 
-        reader.readAsDataURL(file);
-        reader.onload = function(event) {
-            var image = new Image();
+        var promise = new Promise(function(resolve, reject) {
+            var fileReader = new FileReader();
 
-            image.src = event.target.result;
-            image.onload = function(event) {
-                generatePhotoMosaic(this);
-            };
-        };
+            if (file.type.indexOf('image') == -1) {
+                reject(new Error (errorMessages.ERR_INVALID_TYPE));
+            } else {
+                fileReader.readAsDataURL(file);
+                fileReader.onload = function(event) {
+                    resolve(event.target.result, resolve);
+                };
+                fileReader.onerror = function() {
+                    reject(new Error(errorMessages.ERR_FILE_UPLOAD))
+                };
+            }
+        });
+
+        promise
+        .then(function(imageFileHandle, resolveCallback) {
+            return new Promise(function(resolve, reject) {
+                var image = new Image();
+
+                image.src = imageFileHandle;
+                image.onload = function() {
+                    resolve(this);
+                }
+                image.onerror = function() {
+                    reject(new Error(errorMessages.ERR_IMAGE_LOAD));
+                }
+            });
+        })
+        .then(function(sourceImage) {
+            generatePhotoMosaic(sourceImage);
+        })
+        .catch(function(errorMessage) {
+            console.log(errorMessage);
+        });
     }
 
     /**
@@ -168,21 +229,19 @@ PhotoMosaic = (function() {
             if (Object.keys(opt).length == 0) return;
 
             options = opt;
+
+            return this;
+        },
+        StartDragDropListener: function() {
             var sourceImage = document.querySelector(options.sourceImageContainerId);
 
-            sourceImage.addEventListener('drop', onImageDropEventHandler);
-            this.preventDefaults();
-        },
-
-        /**
-         * Prevents accidental page wipeout.
-         * Drop events should only be handled within the image drop zone area
-         */
-        preventDefaults: function() {
-            ['drop', 'dragover'].forEach(function(event) {
+            // Prevents accidental page wipeout
+            ['drop', 'dragover'].map(function(event) {
                 document.addEventListener(event, function(e) { e.preventDefault() });
             });
+
+            // Attach `drop` listener to drop zone area
+            sourceImage.addEventListener('drop', onImageDropEventHandler);
         }
     };
-
 }());

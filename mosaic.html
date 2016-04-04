@@ -37,11 +37,13 @@
   <script type="text/javascript" src="js/mosaic.js"></script>
   <script type="text/javascript" src="js/client.js"></script>
   <script type="text/javascript">
-        PhotoMosaic.init({
+        PhotoMosaic
+        .init({
             tileWidth: TILE_WIDTH,
             tileHeight: TILE_HEIGHT,
             photoMosaicContainerId: '#photoMosaicContainerId',
             sourceImageContainerId: '#sourceImageContainerId'
-        });
+        })
+        .StartDragDropListener();
   </script>
 </html>
